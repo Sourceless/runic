@@ -1,0 +1,13 @@
+[package]
+name = "runic"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aws-config = "0.53.0"
+aws-sdk-dynamodb = "0.23.0"
+aws-sdk-s3 = "0.23.0"
+datafrog = "2.0.1"
+tokio = { version = "1.24.2", features = ["full"] }
