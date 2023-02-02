@@ -22,10 +22,10 @@ import Data.Maybe (isJust)
 import Data.Map (Map, lookup, fromList)
 
 newtype Program = Program [Rule]
-data Rule = Rule Relation [Relation]
-data Relation = Relation Name [Variable]
+data Rule = Rule Relation [Relation] deriving (Eq, Ord)
+data Relation = Relation Name [Variable] deriving (Eq, Ord)
 type Name = String
-data Variable = Symbol String | Value String
+data Variable = Symbol String | Value String deriving (Eq, Ord)
 
 program :: GenParser Char st Program
 program =
@@ -70,7 +70,7 @@ relation =
 variable :: GenParser Char st Variable
 variable = do
     spaces
-    var <- (rValue <|> rSymbol)
+    var <- rValue <|> rSymbol
     spaces
     return var
 
@@ -87,7 +87,7 @@ rValue = do
 
 myProgram :: Program
 myProgram = Program [ Rule (Relation "station" [Value "york"]) []
-                    , Rule (Relation "reachable" [Symbol "x", Symbol "x"]) [(Relation "station" [Symbol "x"])]]
+                    , Rule (Relation "reachable" [Symbol "x", Symbol "x"]) [Relation "station" [Symbol "x"]]]
 
 myProgramText :: String
 myProgramText = "station(\"york\").\nreachable(x, x) <-\nstation(x)."
@@ -120,16 +120,20 @@ runRunic p = runRunic' p empty
 
 
 runRunic' :: Program -> Set Fact -> Set Fact
-runRunic' p facts =
-  let facts' = runRunicStep p facts in
+runRunic' program facts =
+  let (program', facts') = runRunicStep program facts in
         if facts == facts'
         then facts'
-        else runRunic' p facts'
+        else runRunic' program facts'
 -- TODO optimisation below where the program is thrown away each iteration and replaced
 
 runRunicStep :: Program -> Set Fact -> (Program, Set Fact)
-runRunicStep (Program rules) facts = unions (map (runRunicRule facts) rules)
--- TODO throw away the original program and replace it with only the remaining rules
+runRunicStep (Program rules) facts =
+  let (fs, rs) = unzip (map (runRunicRule facts) rules)
+      facts' = unions fs
+      rules' = unions rs
+  in
+    (Program (Data.Set.toList rules'), facts')
 
 -- using facts we know and an existing rule, derive new facts
 runRunicRule :: Set Fact -> Rule -> (Set Fact, Set Rule)
