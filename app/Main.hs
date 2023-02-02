@@ -2,7 +2,24 @@
 module Main where
 import Data.List (intercalate)
 import Text.ParserCombinators.Parsec
+    ( char,
+      letter,
+      noneOf,
+      spaces,
+      string,
+      between,
+      eof,
+      option,
+      sepBy,
+      (<|>),
+      many,
+      parse,
+      ParseError,
+      GenParser )
 import Data.Set (Set, empty, unions, fromList, union, filter, singleton)
+import qualified Data.Set
+import Data.Maybe (isJust)
+import Data.Map (Map, lookup, fromList)
 
 newtype Program = Program [Rule]
 data Rule = Rule Relation [Relation]
@@ -108,20 +125,63 @@ runRunic' p facts =
         if facts == facts'
         then facts'
         else runRunic' p facts'
+-- TODO optimisation below where the program is thrown away each iteration and replaced
 
-runRunicStep :: Program -> Set Fact -> Set Fact
+runRunicStep :: Program -> Set Fact -> (Program, Set Fact)
 runRunicStep (Program rules) facts = unions (map (runRunicRule facts) rules)
+-- TODO throw away the original program and replace it with only the remaining rules
 
 -- using facts we know and an existing rule, derive new facts
-runRunicRule :: Set Fact -> Rule -> Set Fact
+runRunicRule :: Set Fact -> Rule -> (Set Fact, Set Rule)
 runRunicRule facts (Rule (Relation name vars) []) =
   -- if we are out of relations in the body, if all the vars have unified, create a new fact
   let rule = Rule (Relation name vars) [] in
         if ruleSatisfied rule
-        then facts `union` singleton (toFact rule)
-        else facts
-runRunicRule facts (Rule (Relation name vars) rules) = _
+        then (facts `union` singleton (toFact rule), empty)
+        else (facts, empty)
+runRunicRule facts rule =
+  let rules' = map (substitute rule) (Data.Set.toList facts)
+      boundRules = Prelude.filter isJust rules'
+  in
+    _ -- TODO return any new facts and rules found
   -- go through each fact we have and try to apply it to the relation at the head of the rule
+
+substitute :: Rule -> Fact -> Maybe Rule
+substitute (Rule (Relation name vars) ((Relation rname rvars):rs)) (Fact fname fvars) =
+  -- see if the fact can be applied to the head relation in the rule body
+  let rule = Rule (Relation name vars) (Relation rname rvars:rs)
+      fact = Fact fname fvars
+  in
+    -- the rule name and number of vars must be the same!
+    if name == rname && length vars == length rvars
+    then
+      -- for each param -- if it is a symbol, bind it, otherwise ensure it matches
+        let bindings = zipWith bind rvars fvars in
+                -- if everything bound, great! let's produce a new rule by unifying!
+                -- otherwise, we can't go any further, so drop it
+                if all isJust bindings
+                then Just (unify rule fact)
+                else Nothing
+    else Nothing
+
+bind :: Variable -> String -> Maybe String
+bind (Value a) b =
+  if a == b
+  then Just a
+  else Nothing
+bind (Symbol a) b = Just b
+
+unify :: Rule -> Fact -> Rule
+-- takes a rule and binds any symbols in first body relation everywhere in the rule: the head, and any other body relations
+unify (Rule (Relation name vars) body) (Fact fname fvars) =
+  -- first we need to get a mapping from symbol names to concrete values
+  let bindings = Data.Map.fromList (zip vars fvars)
+  in
+    _ -- TODO run unifyRelation over all relations to construct a new rule except the first rule in the body is missing
+
+unifyRelation :: Relation -> Map String String -> Relation
+unifyRelation (Relation name vars) symbolMap =
+  _ -- TODO replace symbols with values
 
 toFact :: Rule -> Fact
 toFact (Rule (Relation name vars) _) = Fact name (map valueOf vars)
