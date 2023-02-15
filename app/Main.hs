@@ -1,4 +1,6 @@
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 module Main where
 import Data.List (intercalate)
 import Text.ParserCombinators.Parsec
@@ -18,8 +20,10 @@ import Text.ParserCombinators.Parsec
       GenParser )
 import Data.Set (Set, empty, unions, fromList, union, filter, singleton)
 import qualified Data.Set
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromJust)
 import Data.Map (Map, lookup, fromList)
+import Text.RawString.QQ ( r )
+import Debug.Trace
 
 newtype Program = Program [Rule]
 data Rule = Rule Relation [Relation] deriving (Eq, Ord)
@@ -35,7 +39,8 @@ program =
 
 rule :: GenParser Char st Rule
 rule =
-    do head <- relation
+    do spaces
+       head <- relation
        spaces
        body <- ruleBody
        spaces
@@ -47,8 +52,15 @@ ruleBody :: GenParser Char st [Relation]
 ruleBody =
     option [] (do
        implies
-       sepBy relation (char ',')
+       sepBy relation ruleBodySeperator
     )
+
+ruleBodySeperator :: GenParser Char st ()
+ruleBodySeperator =
+  do spaces
+     char ','
+     spaces
+     return ()
 
 implies :: GenParser Char st ()
 implies = do
@@ -90,7 +102,29 @@ myProgram = Program [ Rule (Relation "station" [Value "york"]) []
                     , Rule (Relation "reachable" [Symbol "x", Symbol "x"]) [Relation "station" [Symbol "x"]]]
 
 myProgramText :: String
-myProgramText = "station(\"york\").\nreachable(x, x) <-\nstation(x)."
+myProgramText = [r|
+station("york").
+station("leeds").
+station("manchester").
+
+linked("york", "leeds").
+linked("leeds", "manchester").
+
+linked(x, y) <-
+  linked(y, x).
+
+reachable(x, x) <-
+  station(x).
+
+reachable(x, y) <-
+  station(x),
+  station(y),
+  linked(x, y).
+
+reachable(x, z) <-
+  reachable(x, y),
+  reachable(y, z).
+|]
 
 instance Show Variable where
   show :: Variable -> String
@@ -144,11 +178,19 @@ runRunicRule facts (Rule (Relation name vars) []) =
         then (facts `union` singleton (toFact rule), empty)
         else (facts, empty)
 runRunicRule facts rule =
+  -- go through each fact we have and try to apply it to the relation at the head of the rule
   let rules' = map (substitute rule) (Data.Set.toList facts)
       boundRules = Prelude.filter isJust rules'
+      -- run them through again so we reach the base case
+      boundRules' = map (runRunicRule facts . fromJust) boundRules
+
+      -- take the newly descovered facts, roll them up, and add them to our existing knowledge
+      (newFacts, newRules) = unzip boundRules'
+      newFacts' = unions (facts : newFacts)
+      newRules' = unions newRules
   in
-    _ -- TODO return any new facts and rules found
-  -- go through each fact we have and try to apply it to the relation at the head of the rule
+    (newFacts', newRules')
+
 
 substitute :: Rule -> Fact -> Maybe Rule
 substitute (Rule (Relation name vars) ((Relation rname rvars):rs)) (Fact fname fvars) =
@@ -157,7 +199,7 @@ substitute (Rule (Relation name vars) ((Relation rname rvars):rs)) (Fact fname f
       fact = Fact fname fvars
   in
     -- the rule name and number of vars must be the same!
-    if name == rname && length vars == length rvars
+    if fname == rname && length fvars == length rvars
     then
       -- for each param -- if it is a symbol, bind it, otherwise ensure it matches
         let bindings = zipWith bind rvars fvars in
@@ -177,15 +219,27 @@ bind (Symbol a) b = Just b
 
 unify :: Rule -> Fact -> Rule
 -- takes a rule and binds any symbols in first body relation everywhere in the rule: the head, and any other body relations
-unify (Rule (Relation name vars) body) (Fact fname fvars) =
+unify (Rule (Relation name vars) ((Relation rname rvars):rs)) (Fact fname fvars) =
   -- first we need to get a mapping from symbol names to concrete values
-  let bindings = Data.Map.fromList (zip vars fvars)
+  let bindings = Data.Map.fromList (zip rvars fvars)
+      newHead = unifyRelation (Relation name vars) bindings
+      newBody = map (flip unifyRelation bindings) rs
   in
-    _ -- TODO run unifyRelation over all relations to construct a new rule except the first rule in the body is missing
+    Rule newHead newBody
 
-unifyRelation :: Relation -> Map String String -> Relation
+unifyRelation :: Relation -> Map Variable String -> Relation
 unifyRelation (Relation name vars) symbolMap =
-  _ -- TODO replace symbols with values
+  Relation name (map (unifySingle symbolMap) vars)
+
+unifySingle :: Map Variable String -> Variable -> Variable
+unifySingle bindings (Symbol name) =
+  let value = Data.Map.lookup (Symbol name) bindings
+  in
+    case value of
+      Just v -> (Value v)
+      Nothing -> (Symbol name)
+
+unifySingle _ v = v
 
 toFact :: Rule -> Fact
 toFact (Rule (Relation name vars) _) = Fact name (map valueOf vars)
