@@ -1,0 +1,21 @@
+station("york").
+station("leeds").
+station("manchester").
+
+linked("york", "leeds").
+linked("leeds", "manchester").
+
+linked(x, y) <-
+  linked(y, x).
+
+reachable(x, x) <-
+  station(x).
+
+reachable(x, y) <-
+  station(x),
+  station(y),
+  linked(x, y).
+
+reachable(x, z) <-
+  reachable(x, y),
+  reachable(y, z).

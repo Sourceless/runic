@@ -1,0 +1,8 @@
+person("anthony").
+person("steve").
+
+adult("steve").
+
+child(x) <-
+    person(x),
+    not adult(x).
