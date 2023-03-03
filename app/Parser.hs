@@ -64,7 +64,7 @@ implies = do
 
 assertion :: GenParser Char st Assertion
 assertion =
-  choice [ try bindingAssertion, notAssertion, idAssertion ]
+  choice [ try notAssertion, idAssertion ]
 
 notAssertion :: GenParser Char st Assertion
 notAssertion = do
@@ -81,15 +81,6 @@ idAssertion = do
 getValue :: Variable -> String
 getValue (Symbol a) = a
 getValue (Value a) = a
-
-bindingAssertion :: GenParser Char st Assertion
-bindingAssertion = do
-  name <- rSymbol
-  spaces
-  char '='
-  spaces
-  value <- rValue
-  return (Binding (getValue name) (getValue value))
 
 relation :: GenParser Char st Relation
 relation =

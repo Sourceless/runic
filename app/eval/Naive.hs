@@ -51,10 +51,6 @@ fromAssertion :: Assertion -> Relation
 fromAssertion (Id r) = r
 fromAssertion (Not r) = r
 
-isId :: Assertion -> Bool
-isId (Id _) = True
-isId _ = False
-
 substitute :: Rule -> Fact -> Maybe Rule
 substitute (Rule (Relation name vars) (a:as)) (Fact fname fvars) =
   -- see if the fact can be applied to the head relation in the rule body
@@ -69,13 +65,15 @@ substitute (Rule (Relation name vars) (a:as)) (Fact fname fvars) =
         let bindings = zipWith bind rvars fvars in
                 -- if everything bound, great! let's produce a new rule by unifying!
                 -- otherwise, we can't go any further, so drop it
-                if isId a
-                   then if all isJust bindings
-                        then Just (unify rule fact)
-                        else Nothing
-                   else if all isJust bindings
-                        then Nothing
-                        else Just (unify rule fact)
+                case a of
+                  (Id _) ->
+                    if all isJust bindings
+                    then Just (unify rule fact)
+                    else Nothing
+                  (Not _) ->
+                    if all isJust bindings
+                    then Nothing
+                    else Just (unify rule fact)
     else Nothing
 
 bind :: Variable -> String -> Maybe String
