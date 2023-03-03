@@ -1,6 +1,11 @@
 module Parser (Parser.parse) where
 
 import AST
+    ( Program(..),
+      Variable(..),
+      Relation(..),
+      Assertion(..),
+      Rule(..) )
 import Text.ParserCombinators.Parsec
     ( char,
       letter,
@@ -14,6 +19,8 @@ import Text.ParserCombinators.Parsec
       (<|>),
       many,
       parse,
+      choice,
+      try,
       ParseError,
       GenParser )
 
@@ -57,7 +64,7 @@ implies = do
 
 assertion :: GenParser Char st Assertion
 assertion =
-  notAssertion <|> idAssertion
+  choice [ try bindingAssertion, notAssertion, idAssertion ]
 
 notAssertion :: GenParser Char st Assertion
 notAssertion = do
@@ -70,6 +77,19 @@ idAssertion :: GenParser Char st Assertion
 idAssertion = do
   r <- relation
   return (Id r)
+
+getValue :: Variable -> String
+getValue (Symbol a) = a
+getValue (Value a) = a
+
+bindingAssertion :: GenParser Char st Assertion
+bindingAssertion = do
+  name <- rSymbol
+  spaces
+  char '='
+  spaces
+  value <- rValue
+  return (Binding (getValue name) (getValue value))
 
 relation :: GenParser Char st Relation
 relation =

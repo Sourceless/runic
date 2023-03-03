@@ -16,7 +16,6 @@ eval' program facts =
         if facts == facts'
         then facts'
         else eval' program facts'
--- TODO optimisation below where the program is thrown away each iteration and replaced
 
 evalStep :: Program -> Set Fact -> (Program, Set Fact)
 evalStep (Program rules) facts =
