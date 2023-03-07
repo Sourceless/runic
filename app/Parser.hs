@@ -64,7 +64,19 @@ implies = do
 
 assertion :: GenParser Char st Assertion
 assertion =
-  choice [ try notAssertion, idAssertion ]
+  choice [ try notAssertion, try succeedAssertion, try failAssertion, idAssertion ]
+
+succeedAssertion :: GenParser Char st Assertion
+succeedAssertion = do
+  string "succeed"
+  spaces
+  return Succeed
+
+failAssertion :: GenParser Char st Assertion
+failAssertion = do
+  string "fail"
+  spaces
+  return Fail
 
 notAssertion :: GenParser Char st Assertion
 notAssertion = do

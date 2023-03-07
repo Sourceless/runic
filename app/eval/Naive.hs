@@ -50,8 +50,13 @@ evalRule facts rule =
 fromAssertion :: Assertion -> Relation
 fromAssertion (Id r) = r
 fromAssertion (Not r) = r
+fromAssertion Succeed = Relation "!succeed" [] -- this is just a fact!
+fromAssertion Fail = error "No relation exists for Fail"
 
 substitute :: Rule -> Fact -> Maybe Rule
+substitute (Rule _ (Fail:_)) _ =
+  -- short circuit Fail
+  Nothing
 substitute (Rule (Relation name vars) (a:as)) (Fact fname fvars) =
   -- see if the fact can be applied to the head relation in the rule body
   let rule = Rule (Relation name vars) (a:as)
@@ -86,9 +91,13 @@ bind (Symbol a) b = Just b
 setRelation :: Assertion -> Relation -> Assertion
 setRelation (Id _) r = Id r
 setRelation (Not _) r = Not r
+setRelation a _ = a
 
 unify :: Rule -> Fact -> Rule
 -- takes a rule and binds any symbols in first body relation everywhere in the rule: the head, and any other body relations
+unify (Rule (Relation name vars) (Succeed:as)) (Fact fname fvars) =
+  -- short-circuit succeed
+    unify (Rule (Relation name vars) as) (Fact fname fvars)
 unify (Rule (Relation name vars) (a:as)) (Fact fname fvars) =
   -- first we need to get a mapping from symbol names to concrete values
   let

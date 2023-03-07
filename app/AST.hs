@@ -8,7 +8,7 @@ data Rule = Rule Relation [Assertion] deriving (Eq, Ord)
 data Relation = Relation Name [Variable] deriving (Eq, Ord)
 type Name = String
 data Variable = Symbol String | Value String deriving (Eq, Ord)
-data Assertion = Id Relation | Not Relation deriving (Eq, Ord)
+data Assertion = Id Relation | Not Relation | Succeed | Fail deriving (Eq, Ord)
 
 instance Show Variable where
   show :: Variable -> String
@@ -32,3 +32,5 @@ instance Show Assertion where
   show :: Assertion -> String
   show (Id r) = show r
   show (Not r) = "not " ++ show r
+  show Succeed = "succeed"
+  show Fail = "fail"
